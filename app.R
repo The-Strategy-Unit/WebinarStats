@@ -14,6 +14,11 @@ ui_mainpanel <- mainPanel(
     textOutput("eventdate"),
     textOutput("starttime"),
     textOutput("endtime"),
+    textOutput("averagetime"),
+    textOutput("attend_less_than_15"),
+    textOutput("number_of_attendees"),
+    textOutput("attend_more_than_45"),
+    textOutput("joined_after_15mins"),
     tableOutput("head"),
    # dataTableOutput("data"),
   width=8)
@@ -38,7 +43,7 @@ ui <- fluidPage(
     
     sidebarPanel(
       fileInput("file", "Select the csv file containing the Attendance Data for your Teams Live Event:", accept = ".csv"),
-      numericInput("n", "Rows", value=5, min = 1, step = 1),
+      numericInput("n", "Rows", value=10, min = 1, step = 1),
       dateInput("live_event_date", "What was the date of your Teams Live Event?"),
       timeInput("start", "Enter event start time (15 minute steps)", value = strptime("09:00:00", "%T"), minute.steps = 15),
       timeInput("end", "Enter event end time (15 minute steps)", value = strptime("10:00:00", "%T"), minute.steps = 15),
@@ -111,8 +116,17 @@ server <- function(input,output,session) {
        #endtime <- ymd_hms("2023-03-02 12:00:00")
        get_joined_data(data(),eventdate,starttime,endtime)
        })
- 
+    
+     
 
+     
+     
+     
+    output$averagetime <- renderText(mean(get_joined()$how_long))
+    output$attend_less_than_15 <- renderText( nrow(get_joined() |> filter(how_long < 15)))
+    output$number_of_attendees <- renderText(nrow(get_joined()))
+    output$attend_more_than_45 <- renderText(nrow(get_joined() |> filter(how_long > 45)))
+    output$joined_after_15mins <- renderText(nrow(get_joined() |> filter(joinedtime > (input$start+900))))#900 is the number of seconds in 15 mins
     output$head <- renderTable({head(get_joined(),input$n)})
     output$upload <- renderTable(input$upload)
     output$eventdate <- renderText(input$live_event_date)
