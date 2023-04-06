@@ -5,13 +5,20 @@ library(stringr)
 library(tidyverse)
 
 
-data <- read.csv("data/AttendeeReportTest.csv") |>
+data <- readr::read_csv("data/AttendeeReportTest.csv") |>
+ # janitor::clean_names() |>
   dplyr::mutate(datestamp = mdy(str_sub(`UTC.Event.Timestamp`,start=1,end=10))) |>
   dplyr::mutate(datetimestamp = mdy_hms(`UTC.Event.Timestamp`))
 
 
+date <- getmode(format(data$datestamp,"%d"))
+month <- getmode(format(data$datestamp,"%m"))
+year <- getmode(format(data$datestamp,"%Y"))
+modaldate <-ymd(paste0(year,"-",month,"-",date))
 
-eventdate <- ymd("2023-03-02")
+eventdate <- modaldate
+
+#eventdate <- ymd("2023-03-02")
 starttime <- ymd_hms("2023-03-02 11:00:00")
 endtime <- ymd_hms("2023-03-02 12:00:00")
 
@@ -34,30 +41,30 @@ data_left <- data |>
                                         TRUE ~ datetimestamp))
 
 min_data_joined <-data_joined |>
-  group_by(Full.Name) |>
+  group_by(`Full Name`) |>
   filter(correctedtime == min(correctedtime)) 
 
 max_data_left <-data_left |>
-  group_by(Full.Name) |>
+  group_by(`Full Name`) |>
   filter(correctedtime == max(correctedtime))
 
 
-merge_data_join <- select(min_data_joined,Participant.Id,Full.Name,correctedtime) |>
+merge_data_join <- select(min_data_joined,`Participant Id`,`Full Name`,correctedtime) |>
                 rename(joinedtime = correctedtime) 
 
-merge_data_left <- select(max_data_left,Full.Name,correctedtime) |>
+merge_data_left <- select(max_data_left,`Full Name`,correctedtime) |>
   rename(lefttime = correctedtime)
 
 
 
 
-merged_data <- merge(x = merge_data_join, y = merge_data_left, by = "Full.Name") 
+merged_data <- merge(x = merge_data_join, y = merge_data_left, by = "Full Name") 
 
-merged_data$Full.Name[merged_data$Full.Name==" "] <- NA
+merged_data$`Full Name`[merged_data$`Full Name`==" "] <- NA
 
 merged_data <-na.omit(merged_data)
 
-merged_data <- distinct(merged_data, Full.Name, .keep_all = TRUE) |>
+merged_data <- distinct(merged_data, `Full Name`, .keep_all = TRUE) |>
   mutate(how_long = as.numeric(difftime(lefttime, joinedtime, units = "mins")))
 
 average_attend_time <- mean(merged_data$how_long)
