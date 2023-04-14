@@ -80,6 +80,7 @@ server <- function(input,output,session) {
         #modaljoinmin <- getmode(str_sub(format(round(strptime(mdy_hms(d$utc_event_timestamp), format="%Y-%m-%d %H:%M"), units="hours"), format="%H:%M"),start=4,end=5))
        # modalstarttime <- ymd_hms(paste0(modaldate," ",strftime(paste0(modaljoinhour,":",modaljoinmin,":00"), "%T")))
         
+       
         shiny::updateDateInput(session, "live_event_date", value = modaldate)
         #shiny::updateTextInput(session, "start", value = modalstarttime)
         
@@ -122,11 +123,13 @@ server <- function(input,output,session) {
      
      
      
-    output$averagetime <- renderText(mean(get_joined()$how_long))
-    output$attend_less_than_15 <- renderText( nrow(get_joined() |> filter(how_long < 15)))
-    output$number_of_attendees <- renderText(nrow(get_joined()))
-    output$attend_more_than_45 <- renderText(nrow(get_joined() |> filter(how_long > 45)))
-    output$joined_after_15mins <- renderText(nrow(get_joined() |> filter(joinedtime > (input$start+900))))#900 is the number of seconds in 15 mins
+    output$averagetime <- renderText({paste0("Average time attending the event: ",round(mean(get_joined()$how_long))," minutes")})
+    output$attend_less_than_15 <- renderText({paste0("Attended for less than 15 minues: ", nrow(get_joined() |> filter(how_long < 15))," people")})
+    output$number_of_attendees <- renderText({paste0("Number of attendees: ", nrow(get_joined())," people")})
+    output$attend_more_than_45 <- renderText({paste0("Attended for more than 45 minues: ", nrow(get_joined() |> filter(how_long > 45))," people")})
+    #line below is incorrect
+    output$joined_after_15mins <- renderText({paste0("Joined after 15 minues: ", nrow(get_joined() |> filter(joinedtime > (input$start+900)))," people")})#900 is the number of seconds in 15 mins
+    
     output$head <- renderTable({head(get_joined(),input$n)})
     output$upload <- renderTable(input$upload)
     output$eventdate <- renderText(input$live_event_date)
