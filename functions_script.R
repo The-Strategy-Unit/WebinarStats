@@ -23,6 +23,8 @@ get_joined_data <- function(data,eventdate,starttime,endtime){
     dplyr::mutate(correctedtime = dplyr::case_when ( datetimestamp > endtime ~ endtime, 
                                                      TRUE ~ datetimestamp))
   
+
+  
   min_data_joined <-data_joined |>
     group_by(full_name) |>
     filter(correctedtime == min(correctedtime)) 
@@ -58,9 +60,68 @@ getmode <- function(v) {
   uniqv <- unique(v)
   uniqv[which.max(tabulate(match(v, uniqv)))]
 }
-# 
-# getstarttime <- function(t) {
-#   
-#   starttimeestimate <- t
-# }
+
+getmodaldate <- function(timestamp) {
+  # figure out the modal date
+  date <-getmode(format(mdy(str_sub(timestamp,start=1,end=10)),"%d"))
+  month <-getmode(format(mdy(str_sub(timestamp,start=1,end=10)),"%m"))
+  year <-getmode(format(mdy(str_sub(timestamp,start=1,end=10)),"%Y"))
+  modaldate <-ymd(paste0(year,"-",month,"-",date))
+  return(modaldate)
+}
+
+
+create_chart <- function(merged_data,filename,modaldate) {
+  
+  chart_data<- merged_data %>%
+    mutate(arrival_times=floor_date(joinedtime,unit='minute'),
+           depart_times=floor_date(lefttime,unit='minute'))
+  
+  # Joined
+  arrivals <- chart_data%>% 
+    select(timestamp=arrival_times)%>%
+    mutate(counter=1)
+  
+  # Left
+  departures <- chart_data%>% 
+    select(timestamp=depart_times)%>%
+    mutate(counter=-1)
+  
+  #Volumes per minute
+  census_volumes <- arrivals %>%
+    bind_rows(departures)%>%
+    arrange(timestamp,counter)%>%   #arrange by time
+    mutate(volume=cumsum(counter)) #cumsum of counters to get the exact volumes at that point.
+  
+  # create a sequence of times from the start to end of your available data.
+  
+  start <- min(census_volumes$timestamp)
+  end   <- max(census_volumes$timestamp)
+  full_time_window <- tibble(timestamp=seq(start,end,by='mins'))
+  
+  #right join to get the missing time intervals.
+  
+  census_volumes <- census_volumes%>% 
+    right_join(full_time_window,by='timestamp')%>%
+    arrange(timestamp)%>%
+    fill(volume,.direction='down') #take last observation carried forward.
+  
+  
+  chart <-census_volumes%>%
+    ggplot(mapping=aes(x=timestamp,y=volume))+
+    geom_line()+
+    labs(title="Microsoft Teams Live Event Attendance",
+         subtitle=modaldate,
+         caption=paste0('Data Source: ',filename))+
+    theme(
+      plot.title = element_text(color = "black", size = 12, face = "bold",hjust=0.5),
+      plot.subtitle = element_text(color = "black",hjust=0.5),
+      plot.caption = element_text(color = "black", face = "italic",hjust=1)
+    )+
+    xlab('Time')+
+    ylab('Attendees')
+  
+  return(chart) 
+  
+}
 

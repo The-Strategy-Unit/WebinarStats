@@ -11,17 +11,16 @@ source("functions_script.R")
 # Main Panel
 ui_mainpanel <- mainPanel(
     tableOutput("file"),
-    textOutput("eventdate"),
-    textOutput("starttime"),
-    textOutput("endtime"),
+    #textOutput("eventdate"),
+    #textOutput("starttime"),
+    #textOutput("endtime"),
     textOutput("averagetime"),
     textOutput("attend_less_than_15"),
     textOutput("number_of_attendees"),
     textOutput("attend_more_than_45"),
     textOutput("joined_after_15mins"),
-    tableOutput("head"),
-   # dataTableOutput("data"),
-  width=8)
+    plotOutput("plot"),
+ width=8)
 
 
 ui <- fluidPage(
@@ -43,7 +42,7 @@ ui <- fluidPage(
     
     sidebarPanel(
       fileInput("file", "Select the csv file containing the Attendance Data for your Teams Live Event:", accept = ".csv"),
-      numericInput("n", "Rows", value=10, min = 1, step = 1),
+#     numericInput("n", "Rows", value=10, min = 1, step = 1),
       dateInput("live_event_date", "What was the date of your Teams Live Event?"),
       timeInput("start", "Enter event start time (15 minute steps)", value = strptime("09:00:00", "%T"), minute.steps = 15),
       timeInput("end", "Enter event end time (15 minute steps)", value = strptime("10:00:00", "%T"), minute.steps = 15),
@@ -69,13 +68,9 @@ server <- function(input,output,session) {
                validate("invalid csv")
         ) 
             
-        # figure out the modal date
-        date <-getmode(format(mdy(str_sub(d$utc_event_timestamp,start=1,end=10)),"%d"))
-        month <-getmode(format(mdy(str_sub(d$utc_event_timestamp,start=1,end=10)),"%m"))
-        year <-getmode(format(mdy(str_sub(d$utc_event_timestamp,start=1,end=10)),"%Y"))
-        modaldate <-ymd(paste0(year,"-",month,"-",date))
+        modaldate <-getmodaldate(d$utc_event_timestamp)
         
-        # figure out the start time
+        # figure out the modal start time
         #modaljoinhour <- getmode(str_sub(format(round(strptime(mdy_hms(d$utc_event_timestamp), format="%Y-%m-%d %H:%M"), units="hours"), format="%H:%M"),start=1,end=2))
         #modaljoinmin <- getmode(str_sub(format(round(strptime(mdy_hms(d$utc_event_timestamp), format="%Y-%m-%d %H:%M"), units="hours"), format="%H:%M"),start=4,end=5))
        # modalstarttime <- ymd_hms(paste0(modaldate," ",strftime(paste0(modaljoinhour,":",modaljoinmin,":00"), "%T")))
@@ -118,26 +113,55 @@ server <- function(input,output,session) {
        get_joined_data(data(),eventdate,starttime,endtime)
        })
     
-     
-
-     
-     
-     
-    output$averagetime <- renderText({paste0("Average time attending the event: ",round(mean(get_joined()$how_long))," minutes")})
-    output$attend_less_than_15 <- renderText({paste0("Attended for less than 15 minues: ", nrow(get_joined() |> filter(how_long < 15))," people")})
-    output$number_of_attendees <- renderText({paste0("Number of attendees: ", nrow(get_joined())," people")})
-    output$attend_more_than_45 <- renderText({paste0("Attended for more than 45 minues: ", nrow(get_joined() |> filter(how_long > 45))," people")})
-    #line below is incorrect
-    output$joined_after_15mins <- renderText({paste0("Joined after 15 minues: ", nrow(get_joined() |> filter(joinedtime > (input$start+900)))," people")})#900 is the number of seconds in 15 mins
+     get_chart <-reactive({
+       create_chart(get_joined(),input$file$name,input$live_event_date)
+     })
+  
+    output$averagetime <- renderText({
+      paste0("Average time attending the event: ",
+             round(mean(get_joined()$how_long)),
+             " minutes")
+      })
     
-    output$head <- renderTable({head(get_joined(),input$n)})
+    output$attend_less_than_15 <- renderText({
+      paste0("Attended for less than 15 minutes: ",
+             nrow(get_joined() |>
+            filter(how_long < 15)),
+            " people")
+      })
+    
+    output$number_of_attendees <- renderText({
+      paste0("Number of attendees: ",
+             nrow(get_joined()),
+             " people")
+      })
+    
+    
+    output$attend_more_than_45 <- renderText({
+      paste0("Attended for more than 45 minutes: ",
+             nrow(get_joined() |> 
+             filter(how_long > 45)),
+             " people")
+      })
+    
+
+    output$joined_after_15mins <- renderText({
+      paste0("Joined after 15 minutes: ",
+             nrow(get_joined() |>
+             filter(joinedtime > (ymd_hms(paste0(ymd(input$live_event_date)," ",strftime(input$start, "%T")))+900))),#900 is the number of seconds in 15 mins
+             " people")
+      })
+    
+    #glue package
+    
+    #output$head <- renderTable({head(get_joined(),input$n)})
     output$upload <- renderTable(input$upload)
     output$eventdate <- renderText(input$live_event_date)
     #output$starttime <- renderText(input$start)
     #output$endtime <- renderText(input$end)
     output$starttime <- renderText(strftime(input$start, "%T"))
     output$endtime <- renderText(strftime(input$end, "%T"))
-
+    output$plot <- renderPlot({get_chart()})
     
 }
 

@@ -90,7 +90,3 @@ joined_after_15mins <- nrow(merged_data |> filter(joinedtime > starttime+900))#9
 
 #save the data to a csv
 #write.csv(merged_data,"data/merged_data.csv")
-
-
-
-  
