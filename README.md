@@ -1,7 +1,7 @@
 # WebinarStats
 
 
-Code to take the files created after MS Teams Live Events and Webinars or zoom events, clean the data and generate some stats
+Code to take the files created after MS Teams Live Events and Webinars or Zoom events, clean the data and generate some stats
 
 Initially this is working for the AttendeeReport.csv created after a Teams Live Event. Zoom file functiionality is under development.
 
