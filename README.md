@@ -1,8 +1,15 @@
 # WebinarStats
-Code to take the AttendeeReport.csv created after a Teams Live Event, clean the data and generate some stats
 
-The idea of this is to take the auto-generated csv reports from Teams Live events and generate some data about the attendance at the event.
-Initially the filename, its location and the date and start and finish times are hard-coded into the script. Eventualy I would like this to maybe be a small shiny app where I can select the file and enter the relevant event details and then present a few stats
+
+Code to take the files created after MS Teams Live Events and Webinars or zoom events, clean the data and generate some stats
+
+Initially this is working for the AttendeeReport.csv created after a Teams Live Event. Zoom file functiionality is under development.
+
+The idea of this is to take the auto-generated csv reports from the events and generate some data about the attendance at the event.
+
+The file tidythedata.R has the filename, its location and the date and start and finish times hard-coded into the script and generates some basic stats with option to output a "tidy" csv file of the results.
+
+Also within this project is the development of a small shiny app where the user can select the file and type, enter the relevant event details and then present a few stats and charts, maybe some functionality to export a useable file of data etc, short pdf report of the charts and basic stats etc.
 
 The data here is a test file.  If you use the Attendee engagement report from your live event in Teams then it will be named:  AttendeeReport.csv 
 You can obtain it via the calendar in Teams, click on the event and then look here at Live Event resources and then download it.
