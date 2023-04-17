@@ -5,7 +5,8 @@ library(stringr)
 library(tidyverse)
 
 
-data <- readr::read_csv("data/AttendeeReportTest.csv") |>
+  data <- readr::read_csv("data/AttendeeReportTest.csv") |>
+  janitor::clean_names() |>
   janitor::clean_names() |>
   dplyr::mutate(datestamp = mdy(str_sub(utc_event_timestamp,start=1,end=10))) |>
   dplyr::mutate(datetimestamp = mdy_hms(utc_event_timestamp)) |>
