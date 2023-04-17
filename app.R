@@ -42,9 +42,9 @@ ui <- fluidPage(
   sidebarLayout(
     
     sidebarPanel(
-      fileInput("file", "Select the csv file containing the Attendance Data for your event:", accept = ".csv"),
+      fileInput("file", "Select the csv file containing the attendance data for your event:", accept = ".csv"),
       radioButtons("file_type","Select file type", filetypes),
-      dateInput("live_event_date", "What was the date of your Teams Live Event?"),
+      dateInput("live_event_date", "What was the date of your event?"),
       timeInput("start", "Enter event start time (15 minute steps)", value = strptime("09:00:00", "%T"), minute.steps = 15),
       timeInput("end", "Enter event end time (15 minute steps)", value = strptime("10:00:00", "%T"), minute.steps = 15),
 
