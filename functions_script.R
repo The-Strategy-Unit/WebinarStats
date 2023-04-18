@@ -70,6 +70,16 @@ getmodaldate <- function(timestamp) {
   return(modaldate)
 }
 
+getmedianhour <- function(timestamp) {
+  medianhour <- round(median(as.numeric((str_sub(timestamp,start=1,end=2)))))
+  return(medianhour)
+}
+
+getmedianmin <- function(timestamp) {
+  medianmin <- round(median(as.numeric((str_sub(timestamp,start=4,end=5)))))
+  return(medianmin)
+}
+
 
 create_chart <- function(merged_data,filename,modaldate) {
   
@@ -93,7 +103,7 @@ create_chart <- function(merged_data,filename,modaldate) {
     arrange(timestamp,counter) |>   #arrange by time
     mutate(volume=cumsum(counter)) #cumsum of counters to get the exact volumes at that point.
   
-  # create a sequence of times from the start to end of your available data.
+  # create a sequence of times from the start to end of available data.
   
   start <- min(census_volumes$timestamp)
   end   <- max(census_volumes$timestamp)
@@ -110,7 +120,7 @@ create_chart <- function(merged_data,filename,modaldate) {
   chart <-census_volumes |>
     ggplot(mapping=aes(x=timestamp,y=volume))+
     geom_line(colour="orange",size=1)+
-    labs(title="Microsoft Teams Live Event Attendance",
+    labs(title="Event Attendance by Minute",
          subtitle=modaldate,
          caption=paste0('Data Source: ',filename))+
     theme(
@@ -130,7 +140,7 @@ create_how_long_chart <- function(merged_data,filename,modaldate){
     ggplot(merged_data,aes(how_long))+
     geom_bar(colour="orange",fill="orange")+
     #geom_histogram()+
-    labs(title="Microsoft Teams Live Event Attendance",
+    labs(title="Length of Event Attendance (Minutes)",
          subtitle=modaldate,
          caption=paste0('Data Source: ',filename))+
     theme(
@@ -144,7 +154,7 @@ create_how_long_chart <- function(merged_data,filename,modaldate){
 }
 
 
-# Code taken from an internet search: 
+# Code taken from an internet search for use with import of Zoom file: 
 # https://stackoverflow.com/questions/39110755/skip-specific-rows-using-read-csv-in-r
 #' read csv table, wrapper of \code{\link{read.csv}}
 #' @description read csv table, wrapper of \code{\link{read.csv}}

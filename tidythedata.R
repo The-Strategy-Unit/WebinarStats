@@ -4,6 +4,7 @@ library(lubridate)
 library(stringr)
 library(tidyverse)
 
+source("functions_script.R")
 
   data <- readr::read_csv("data/AttendeeReportTest.csv") |>
   janitor::clean_names() |>
@@ -16,29 +17,31 @@ joined <- data |>
   dplyr::filter(action == "Joined") |>
   dplyr::filter(role == "Attendee")
 
+#modal or median times?
 modaljoinhour <- getmode(str_sub(joined$roundtime,start=1,end=2))
 modaljoinmin <- getmode(str_sub(joined$roundtime,start=4,end=5))
-
+medianjoinhour <- round(median(as.numeric((str_sub(joined$roundtime,start=1,end=2)))))
+medianjoinmin <- round(median(as.numeric((str_sub(joined$roundtime,start=4,end=5)))))
 
 left <- data |>
   dplyr::filter(action == "Left") |>
   dplyr::filter(role == "Attendee")
 
+#modal or median times?
 modallefthour <- getmode(str_sub(left$roundtime,start=1,end=2))
 modalleftmin <- getmode(str_sub(left$roundtime,start=4,end=5))
+medianlefthour <- round(median(as.numeric((str_sub(left$roundtime,start=1,end=2)))))
+medianleftmin <- round(median(as.numeric((str_sub(left$roundtime,start=4,end=5)))))
 
 date <- getmode(format(data$datestamp,"%d"))
 month <- getmode(format(data$datestamp,"%m"))
 year <- getmode(format(data$datestamp,"%Y"))
 modaldate <-ymd(paste0(year,"-",month,"-",date))
 
+#used median time and modal date
 eventdate <- modaldate
-
-#eventdate <- ymd("2023-03-02")
-starttime <- ymd_hms("2023-03-02 11:00:00")
-endtime <- ymd_hms("2023-03-02 12:00:00")
-
-
+starttime <- ymd_hms(paste0(eventdate," ",medianjoinhour, ":",medianjoinmin,":00"))
+endtime <- ymd_hms(paste0(eventdate," ",medianlefthour, ":",medianleftmin,":00"))
 
 data_joined <- data |>
   dplyr::filter(action == "Joined") |>

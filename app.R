@@ -19,7 +19,7 @@ ui_mainpanel <- mainPanel(
     textOutput("joined_after_15mins"),
     plotOutput("plot",width="90%"),
     plotOutput("plot2",width="90%"),
-    valueBoxOutput("box1"),
+    #valueBoxOutput("box1"),
  width=8)
 
 filetypes <- c("MS Teams Live Event", "MS Teams Webinar", "Zoom")
@@ -46,7 +46,7 @@ ui <- fluidPage(
       radioButtons("file_type","Select file type", filetypes),
       dateInput("live_event_date", "What was the date of your event?"),
       timeInput("start", "Enter event start time (15 minute steps)", value = strptime("09:00:00", "%T"), minute.steps = 15),
-      timeInput("end", "Enter event end time (15 minute steps)", value = strptime("10:00:00", "%T"), minute.steps = 15),
+      timeInput("end", "Enter event end time (15 minute steps)", value = strptime("17:00:00", "%T"), minute.steps = 15),
 
 #      actionButton("click","Generate stats", icon("bar-chart-o"), style="color: #FFFFFF; background-color: #D20019; border-color: #8C0032")
     ),
@@ -69,9 +69,13 @@ server <- function(input,output,session) {
         ) 
             
         modaldate <-getmodaldate(d$utc_event_timestamp)
+
         
         shiny::updateDateInput(session, "live_event_date", value = modaldate)
+        
 
+        
+        
         
         return (d)
       }) |>
@@ -88,9 +92,14 @@ server <- function(input,output,session) {
        
        eventdate <- ymd(input$live_event_date)
        
+      # medianhour <-getmedianhour(input$start)
+      # medianmin <-getmedianmin(input$start)
+       
        starttime <-ymd_hms(paste0(ymd(input$live_event_date)," ",strftime(input$start, "%T")))
        endtime <-ymd_hms(paste0(ymd(input$live_event_date)," ",strftime(input$end, "%T")))
        get_joined_data(data(),eventdate,starttime,endtime)
+       
+      # shinyTime::updateTimeInput(session, "start", value = hms(paste0(medianhour, ":",medianmin,":00")))
        })
     
      get_chart <-reactive({
