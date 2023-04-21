@@ -92,8 +92,11 @@ server <- function(input,output,session) {
        
        eventdate <- ymd(input$live_event_date)
        
-      # medianhour <-getmedianhour(input$start)
-      # medianmin <-getmedianmin(input$start)
+       #medianhour <-getmedianhour(input$start)
+       #medianmin <-getmedianmin(input$start)
+       
+       #cat(medianhour)
+       #cat(medianmin)
        
        starttime <-ymd_hms(paste0(ymd(input$live_event_date)," ",strftime(input$start, "%T")))
        endtime <-ymd_hms(paste0(ymd(input$live_event_date)," ",strftime(input$end, "%T")))
