@@ -1,3 +1,10 @@
+#' -----------------------------------------------------------------------------
+#' WEBINAR STATS APP
+#' 
+#' Here is the Shiny code to control the ui and logic for the WebinarStats app
+#' -----------------------------------------------------------------------------
+
+# libraries --------------------------------------------------------------------
 library(shiny)
 library(tidyverse)
 library(readr)
@@ -5,11 +12,12 @@ library(lubridate)
 library(stringr)
 library(shinyTime)
 library(flexdashboard)
+library(clock)
 
-
+## user-defined functions ----
 source("functions_script.R")
 
-# Main Panel
+# ui ---------------------------------------------------------------------------
 ui_mainpanel <- mainPanel(
     tableOutput("file"),
     textOutput("averagetime"),
@@ -55,31 +63,36 @@ ui <- fluidPage(
     fluid = TRUE
   )
 )
-  
+
+# server -----------------------------------------------------------------------
 server <- function(input,output,session) {
 
-  
-      data <- reactive({
-        file <- req(input$file)
-        ext <- tools::file_ext(input$file$name)
-        d <- switch(ext,
-               csv = readr::read_csv(input$file$datapath) |>
-                 janitor::clean_names(),
-               validate("invalid csv")
-        ) 
-            
-        modaldate <-getmodaldate(d$utc_event_timestamp)
+  ## file uploads --------------------------------------------------------------
+  data <- reactive({
+    
+    # ensure we have a file uploaded
+    file <- req(input$file)
+    
+    # determine how to load / process based on filetype
+    ext <- tools::file_ext(input$file$name)
+    d <- switch(
+      ext,
+      csv = readr::read_csv(input$file$datapath) |>
+              janitor::clean_names(),
+              validate("invalid csv")
+      ) 
+    
+    # update date and time parameters on the form
+    d_events <- estimate_event_times(df = d)
+    #modaldate <-getmodaldate(d$utc_event_timestamp)
+    #shiny::updateDateInput(session, "live_event_date", value = modaldate)
+    updateDateInput(session, 'live_event_date', value = as_date(d_events$start))
+    updateTimeInput(session, 'start', value = d_events$start)
+    updateTimeInput(session, 'end', value = d_events$end)
 
-        
-        shiny::updateDateInput(session, "live_event_date", value = modaldate)
-        
-
-        
-        
-        
-        return (d)
-      }) |>
-        bindEvent(input$file)
+    return (d)
+    }) |>
+      bindEvent(input$file)
   
 
      get_joined <-reactive({
