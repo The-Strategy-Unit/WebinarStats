@@ -43,7 +43,7 @@ ui <- fluidPage(
                       style = "background-color:#FFFFFF;"),
                column(width = 11,
                       h1(p("Microsoft Teams and Zoom Event Statistics"),
-                         style = "font-weight:bold; font-family:Segoe UI; font-size:xx-large"),
+                         style = "font-weight:bold; font-family:Segoe UI, Helvetica, Arial, sans-serif; font-size:xx-large"),
                       style = "background-color:#FFFFFF;")
              )
   ),
