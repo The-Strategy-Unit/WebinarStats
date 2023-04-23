@@ -214,7 +214,7 @@ ez.read = function(file, ..., skip.rows=NULL, tolower=FALSE){
 #' 
 #' Estimates the start and end times for an event from a given tibble of uploaded data
 #'
-#' @param df Dataframe
+#' @param df Dataframe of an uploaded MS Teams Attendee Report
 #'
 #' @return Tibble containing two fields and one row identifying the estimated start and end datetimes for an event.
 #' @export
