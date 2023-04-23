@@ -4,6 +4,9 @@
 #' Here are functions used throughout the script
 #' -----------------------------------------------------------------------------
 
+# libraries --------------------------------------------------------------------
+library(tidyverse)
+library(clock)
 
 #' Get Joined Data
 #' 
