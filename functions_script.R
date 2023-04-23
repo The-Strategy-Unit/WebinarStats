@@ -205,3 +205,57 @@ ez.read = function(file, ..., skip.rows=NULL, tolower=FALSE){
   if (tolower) names(result) = tolower(names(result))
   return(result)
 }
+
+
+#' Estimate event times
+#' 
+#' Estimates the start and end times for an event from a given tibble of uploaded data
+#'
+#' @param df Dataframe
+#'
+#' @return Tibble containing two fields and one row identifying the estimated start and end datetimes for an event.
+#' @export
+#'
+#' @examples df_estimated_event_times = estimate_event_times(df = df)
+estimate_event_times <- function(df) {
+  
+  # try to determine the field containing datetime information and alias it
+  if ('utc_event_timestamp' %in% colnames(df)) {
+    df <- df |> 
+      rename(event_timestamp = utc_event_timestamp)
+  } else if ('UTC Event Timestamp' %in% colnames(df)) {
+    df <- df |> 
+      rename(event_timestamp = `UTC Event Timestamp`)
+  }
+  
+  # parse the datetime and then round it to 15 minute intervals
+  df <- df |> 
+    mutate(
+      # parse datetime from the utc event string - nb, using %I for the hour so takes account of am/pm
+      action_datetime = date_time_parse(event_timestamp, format = '%m/%d/%Y %I:%M:%S %p', zone = 'UTC'),
+      # round to 15 minute intervals
+      action_datetime_rounded = date_round(action_datetime, precision = 'minute', n = 15)
+    ) |> 
+    # remove duplicate records - i.e. where participant joins the session on multiple devices at the same time
+    select(-session_id) |> 
+    unique()
+  
+  # estimate start time from the average (median) rounded start time
+  df_start <- df |> 
+    filter(action == 'Joined') |> 
+    summarise(start = median(action_datetime_rounded))
+  
+  # estimate end time from the third quartile rounded time for attendees leaving
+  df_end <- df |> 
+    filter(action == 'Left') |> 
+    summarise(end = quantile(action_datetime_rounded, probs = 0.75))
+  
+  # combine together to a single table with one row and two columns
+  df_return <- bind_cols(
+    df_start,
+    df_end
+  )
+  
+  # return the result
+  return(df_return)
+}
