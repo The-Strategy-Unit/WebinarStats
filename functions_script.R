@@ -393,7 +393,7 @@ get_event_attendees <- function(df, event_start_datetime, event_end_datetime) {
   df_attendees_earliest_join <- df_attendees |>
     group_by(participant_id) |> 
     slice_min(order_by = joined_datetime) |> 
-    slice_head(n = 1) |> # some sessions appear duplicate
+    slice_head(n = 1) |> # some sessions appear duplicate times
     ungroup() |> 
     select(participant_id, joined_datetime, joined_datetime_rounded)
   
@@ -401,7 +401,7 @@ get_event_attendees <- function(df, event_start_datetime, event_end_datetime) {
   df_attendees_latest_left <- df_attendees |> 
     group_by(participant_id) |> 
     slice_max(order_by = left_datetime) |> 
-    slice_tail(n = 1) |> # some sessions appear duplicate
+    slice_tail(n = 1) |> # some sessions appear duplicate times
     ungroup() |> 
     select(participant_id, left_datetime, left_datetime_rounded)
   
@@ -444,4 +444,49 @@ get_event_attendees <- function(df, event_start_datetime, event_end_datetime) {
       attendance_end_datetime = pmin(left_datetime, event_end_datetime),
       attendance_duration = attendance_end_datetime - attendance_start_datetime
     )
+}
+
+#' Get attendance count by minute
+#' 
+#' Gets a count of attendees for each minute of the event.
+#'
+#' @param df_attendees Tibble of attendees with a unique id, attendance start and end times 
+#' @param start Datetime of the start of the event
+#' @param end Datetime of the end of the event
+#'
+#' @return Tibble of with the number of attendees for each minute of the event
+#' @export
+#'
+#' @examples
+get_attandance_count_per_minute <- function(df_attendees, start, end) {
+  
+  # get a sequence of datetimes from event start to event end
+  df_minutes <- seq(
+    from = make_datetime(2023,03,02,11),
+    to = make_datetime(2023,03,02,12),
+    by = '1 min'
+  ) |> 
+    # convert to tibble and name the column
+    as_tibble() |> 
+    rename(minute = value)
+  
+  # cartesian join all minutes to each attendee record
+  df_attendees_per_minute <- merge(
+    x = df_attendees,
+    y = df_minutes
+  ) |> 
+    # limit to where the minute is within attendance start and end dates
+    filter(
+      !is.na(attendance_start_datetime),
+      !is.na(attendance_end_datetime),
+      (attendance_start_datetime <= minute) & (attendance_end_datetime >= minute)
+    ) |> 
+    # count number of participants per minute
+    group_by(minute) |> 
+    summarise(attendees = n_distinct(participant_id)) |> 
+    ungroup()
+  
+  # return the result
+  return(df_attendees_per_minute)
+  
 }
