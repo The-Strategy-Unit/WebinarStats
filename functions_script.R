@@ -5,8 +5,12 @@
 #' -----------------------------------------------------------------------------
 
 # libraries --------------------------------------------------------------------
-library(tidyverse)
-library(clock)
+library(tidyverse)         # tidy processing
+library(clock)             # datetime processing
+library(vroom)             # speedy file loads
+library(here)              # localised file references
+library(janitor)           # tidy field names
+library(uaparserjs)        # parse user-agent strings
 
 #' Get Joined Data
 #' 
