@@ -351,3 +351,97 @@ process_imported_file <- function(df) {
   return(df)
   
 }
+
+
+#' Get attendee data for an event
+#' 
+#' Takes a processed df as an output from process_imported_file() along with a
+#' start and end datetime for an event and returns a list of unique attendees
+#' with the duration of their attendance calculated. 
+#' 
+#' Attendees who had multiple sessions, for example because they joined / left 
+#' more than once, will be assumed to have attended from their earliest join 
+#' datetime to the their latest left datetime.
+#'
+#' @param df Tibble of data from a processed attendance file
+#' @param event_start_datetime Datetime specifying the start of the event
+#' @param event_end_datetime Datetime specifying the end of the event
+#'
+#' @return Tibble of attendees for the event with one row per attendee
+#' @export
+#' @seealso process_imported_file()
+#'
+#' @examples
+get_event_attendees <- function(df, event_start_datetime, event_end_datetime) {
+  
+  # get attendee data ----------------------------------------------------------
+  df_attendees <- df |> 
+    # keep records where sessions coincided with the event start and end times
+    filter(
+      role == 'Attendee', # only work with attendees (not team members)
+      !is.na(participant_id), # only work with participants with a valid id
+      joined_datetime < event_end_datetime, # where they joined before the end of the session
+      left_datetime > event_start_datetime # where they left after the start of the session
+    ) |> 
+    # keep unique records
+    unique()
+  
+  # merge multiple sessions per person -----------------------------------------
+  # assume they attended from their earliest session start to their latest session end
+  
+  # get the earliest session by join time
+  df_attendees_earliest_join <- df_attendees |>
+    group_by(participant_id) |> 
+    slice_min(order_by = joined_datetime) |> 
+    slice_head(n = 1) |> # some sessions appear duplicate
+    ungroup() |> 
+    select(participant_id, joined_datetime, joined_datetime_rounded)
+  
+  # get the latest session by left time
+  df_attendees_latest_left <- df_attendees |> 
+    group_by(participant_id) |> 
+    slice_max(order_by = left_datetime) |> 
+    slice_tail(n = 1) |> # some sessions appear duplicate
+    ungroup() |> 
+    select(participant_id, left_datetime, left_datetime_rounded)
+  
+  # get a single device per participant (select the device with longest use)
+  df_attendees_device <- df_attendees |> 
+    group_by(participant_id) |> 
+    slice_max(order_by = session_length) |> 
+    slice_head(n = 1) |> # some sessions have the same length so in this case select the first one
+    ungroup() |> 
+    select(participant_id, ua_family, os_family, device_family, os_formfactor)
+  
+  # combine to a single table
+  df_attendees_unique <- df_attendees |> 
+    select(participant_id, full_name) |> 
+    unique()
+  
+  df_attendees_unique <- left_join(
+    x = df_attendees_unique,
+    y = df_attendees_earliest_join,
+    by = 'participant_id'
+  )
+  df_attendees_unique <- left_join(
+    x = df_attendees_unique,
+    y = df_attendees_latest_left,
+    by = 'participant_id'
+  )
+  df_attendees_unique <- left_join(
+    x = df_attendees_unique,
+    y = df_attendees_device,
+    by = 'participant_id'
+  )
+  
+  # housekeeping
+  rm(df_attendees_earliest_join, df_attendees_latest_left, df_attendees_device)
+  
+  # work out the length time each participant attended the session -------------
+  df_attendees <- df_attendees_unique |> 
+    mutate(
+      attendance_start_datetime = pmax(joined_datetime, event_start_datetime),
+      attendance_end_datetime = pmin(left_datetime, event_end_datetime),
+      attendance_duration = attendance_end_datetime - attendance_start_datetime
+    )
+}
