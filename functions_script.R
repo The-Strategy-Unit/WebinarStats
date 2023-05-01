@@ -442,7 +442,11 @@ get_event_attendees <- function(df, event_start_datetime, event_end_datetime) {
     mutate(
       attendance_start_datetime = pmax(joined_datetime, event_start_datetime),
       attendance_end_datetime = pmin(left_datetime, event_end_datetime),
-      attendance_duration = attendance_end_datetime - attendance_start_datetime
+      attendance_duration = date_count_between(
+        start = attendance_start_datetime,
+        end = attendance_end_datetime,
+        precision = 'minute'
+      )
     )
 }
 
@@ -462,8 +466,10 @@ get_attandance_count_per_minute <- function(df_attendees, start, end) {
   
   # get a sequence of datetimes from event start to event end
   df_minutes <- seq(
-    from = make_datetime(2023,03,02,11),
-    to = make_datetime(2023,03,02,12),
+    #from = make_datetime(2023,03,02,11),
+    #to = make_datetime(2023,03,02,12),
+    from = start,
+    to = end,
     by = '1 min'
   ) |> 
     # convert to tibble and name the column
@@ -490,3 +496,111 @@ get_attandance_count_per_minute <- function(df_attendees, start, end) {
   return(df_attendees_per_minute)
   
 }
+
+get_event_datetime <- function(event_date, event_time) {
+  event_datetime <- date_time_parse(
+    x = paste(
+      strftime(event_date),
+      strftime(event_time, '%T')
+    ),
+    zone = 'UTC'
+  )
+  return(event_datetime)
+}
+
+
+calculate_attendance_statistic <- function(df_attendees) {
+  
+  # combine all stats to a tibble with a column each
+  df_return = bind_cols(
+    
+    # average attendance duration in minutes
+    mean_duration = paste(
+      prettyNum(
+        round(
+          mean(
+            df_attendees$attendance_duration
+          )
+        ), big.mark = ','
+      ), 'mins'
+    ),
+    
+    # number of attendees for the event
+    number_of_attendees = paste(
+      prettyNum(
+        n_distinct(df_attendees$participant_id),
+        big.mark = ','
+      ), 'people'
+    ),
+    
+    # number of attendees who stayed for less than 15 minutes
+    attend_less_than_15 = paste(
+      prettyNum(
+        n_distinct(
+          df_attendees |> 
+            filter(attendance_duration < 15) |> 
+            select(participant_id) |> 
+            as_vector()
+        ), big.mark = ','
+      ), 'people'
+    ),
+    
+    # number of people who stayed for over 45 minutes
+    attend_more_than_45 = paste(
+      prettyNum(
+        n_distinct(
+          df_attendees |> 
+            filter(attendance_duration > 45) |> 
+            select(participant_id) |> 
+            as_vector()
+        ), big.mark = ','
+      ), 'people'
+    ),
+    
+    # people who joined the event after 15 minutes
+    joined_after_15mins = paste(
+      prettyNum(
+        n_distinct(
+          df_attendees |> 
+            mutate(start_time_plus15 = add_minutes(min(attendance_start_datetime), 15)) |> 
+            filter(attendance_start_datetime > start_time_plus15) |> 
+            select(participant_id) |> 
+            as_vector()
+        ), big.mark = ','
+      ), 'people'
+    ),
+    
+    # people who attended on a computer device
+    attended_on_computer = paste(
+      prettyNum(
+        n_distinct(
+          df_attendees |> 
+            filter(os_formfactor == 'Computer') |> 
+            select(participant_id) |> 
+            as_vector()
+        ), big.mark = ','
+      ), 'people'
+    ),
+    
+    # people who attended on a mobile device
+    attended_on_mobile = paste(
+      prettyNum(
+        n_distinct(
+          df_attendees |> 
+            filter(os_formfactor == 'Mobile') |> 
+            select(participant_id) |> 
+            as_vector()
+        ), big.mark = ','
+      ), 'people'
+    )
+    
+  ) # end of bind_col ---
+
+  # return the result
+  return(df_return)
+
+}
+
+
+
+
