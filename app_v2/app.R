@@ -14,6 +14,9 @@ library(ggsurvfit)                # time-to-event plots
 library(gtsummary)                # summarise survival stats
 library(gt)                       # render gt outputs in shiny
 
+#devtools::install_github("The-Strategy-Unit/StrategyUnitTheme")
+library(StrategyUnitTheme)        # corporate colours
+
 ## user-defined functions ----
 source(here('functions_script.R'))
 
@@ -188,8 +191,7 @@ ui <- dashboardPage(
         fluidRow(
           column(
             width = 12,
-            h1('Survival analysis'),
-            a('https://towardsdatascience.com/what-is-survival-analysis-examples-by-hand-and-in-r-3f0870c3203f')
+            h1('Survival analysis')
           )
         ),
         
@@ -204,11 +206,26 @@ ui <- dashboardPage(
               plotOutput(outputId = 'survival_plot_overall'),
               gt_output(outputId = 'survival_table_overall_time'),
               gt_output(outputId = 'survival_table_overall_probs')
-            )
+            ),
             
-          )
-          
+            tabPanel(
+              title = 'Device',
+              plotOutput(outputId = 'survival_plot_device'),
+              gt_output(outputId = 'survival_table_device_time'),
+              gt_output(outputId = 'survival_table_device_probs')
+            )
+          ),
         ),
+        
+        fluidRow(
+          box(
+            title = 'About', 
+            width = 12,
+            tags$p('This analysis looks at the expected duration until attendees leave the meeting.'),
+            tags$p('"Events" are people leaving the meeting and attendees are "Censored" where their leaving time is unknown.'),
+            tags$a(href='https://towardsdatascience.com/what-is-survival-analysis-examples-by-hand-and-in-r-3f0870c3203f', 'Learn more about survival analysis', target = '_blank')
+          )
+        )
         
         
       ) # survival end -
@@ -395,11 +412,14 @@ server <- function(input, output) {
         status = case_when(
           is.na(left_datetime) ~ 0,
           TRUE ~ 1
-        )
+        ),
+        # convert output variables to factors
+        os_formfactor = factor(os_formfactor)
       )
     
   })
   
+  ## overall --
   output$survival_plot_overall <- renderPlot({
     req(df_survival())
     
@@ -409,12 +429,12 @@ server <- function(input, output) {
     )
     
     surv_overall |> 
-      ggsurvfit(colour = '#2c2825') +
-      add_confidence_interval(fill = '#f9bf07') +
+      ggsurvfit(color = su_theme_cols('orange')) +
+      add_confidence_interval(fill = su_theme_cols('orange')) +
       add_risktable() +
       scale_ggsurvfit() + 
       labs(
-        title = 'Survival analysis',
+        title = 'Survival analysis for all attendees',
         x = 'Minutes'
       )
   })
@@ -427,7 +447,8 @@ server <- function(input, output) {
       Surv(attendance_duration, status) ~ 1, data = df_survival()
     )
     
-    temp_mins_max <- max(df_survival()$attendance_duration, na.rm = T)
+    # what is the maximum attendance duration (rounded to nearest 15 mins)
+    temp_mins_max <- ceiling(max(df_survival()$attendance_duration, na.rm = T)/15)*15
     
     surv_overall |> 
       tbl_survfit(
@@ -452,8 +473,64 @@ server <- function(input, output) {
       ) |> 
       as_gt()
   })
-
+  
+  ## device --
+  output$survival_plot_device <- renderPlot({
+    req(df_survival())
     
+    # simple survival curve
+    surv_overall <- survfit2(
+      Surv(attendance_duration, status) ~ os_formfactor, data = df_survival()
+    )
+    
+    surv_overall |> 
+      ggsurvfit() +
+      add_confidence_interval() +
+      add_risktable() +
+      scale_ggsurvfit() + 
+      labs(
+        title = 'Survival analysis for all attendees, split by device',
+        x = 'Minutes'
+      )
+  })
+
+  output$survival_table_device_time <- render_gt({
+    req(df_survival())
+    
+    # simple survival curve
+    surv_overall <- survfit2(
+      Surv(attendance_duration, status) ~ os_formfactor, data = df_survival()
+    )
+    
+    # what is the maximum attendance duration (rounded to nearest 15 mins)
+    temp_mins_max <- ceiling(max(df_survival()$attendance_duration, na.rm = T)/15)*15
+    
+    surv_overall |> 
+      tbl_survfit(
+        times = c((temp_mins_max/4), (temp_mins_max/2), ((temp_mins_max/4)*3)),
+        label = list(os_formfactor ~ 'Device type'),
+        label_header = '{time} minutes',
+        
+      ) |> 
+      as_gt()
+  })
+  
+  output$survival_table_device_probs <- render_gt({
+    req(df_survival())
+    
+    # simple survival curve
+    surv_overall <- survfit2(
+      Surv(attendance_duration, status) ~ os_formfactor, data = df_survival()
+    )
+    
+    surv_overall |> 
+      tbl_survfit(
+        probs = c(0.5),
+        label = list(os_formfactor ~ 'Device type'),
+        label_header = 'Median survival time in mins (95% CI)'
+      ) |> 
+      as_gt()
+  })
 }
 
 # run --------------------------------------------------------------------------
