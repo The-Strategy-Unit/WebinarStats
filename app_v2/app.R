@@ -9,7 +9,10 @@ library(shiny)                    # shiny core
 library(shinydashboard)           # layout and display functions
 library(shinyTime)                # allows for a time input widget
 library(here)                     # localised file references
-library(plotly)                   # charts
+library(plotly)                   # interactive charts
+library(ggsurvfit)                # time-to-event plots
+library(gtsummary)                # summarise survival stats
+library(gt)                       # render gt outputs in shiny
 
 ## user-defined functions ----
 source(here('functions_script.R'))
@@ -39,30 +42,30 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       
-      ### import ----
+      ### import ---
       menuItem(
         text = 'Import',
         tabName = 'file_import',
         icon = icon('file-import')
       ),
       
-      ### stats ----
+      ### stats ---
       menuItem(
         text = 'Statistics',
         tabName = 'statistics',
         icon = icon('table')
       ),
       
-      ### chart ----
+      ### survival ---
       menuItem(
-        text = 'Chart',
-        tabName = 'other',
-        icon = icon('ellipsis')
+        text = 'Survival analysis',
+        tabName = 'survival',
+        icon = icon('stopwatch-20')
       )
     )
   ),
   
-  # body -----------------------------------------------------------------------
+  ## body -----------------------------------------------------------------------
   dashboardBody(
     
     tags$img(
@@ -72,7 +75,7 @@ ui <- dashboardPage(
     ),
 
     tabItems(
-      ## import ----------------------------------------------------------------
+      ### import ---------------------------------------------------------------
       tabItem(
         tabName = 'file_import',
         
@@ -85,7 +88,7 @@ ui <- dashboardPage(
           )
         ),
         
-        ### import configuration box ----
+        ### import configuration box ---
         fluidRow(
           
           #### file --
@@ -138,13 +141,13 @@ ui <- dashboardPage(
           
         ),
         
-        ### import feedback chart ----
+        ### import feedback chart ---
         fluidRow(
           plotlyOutput('file_import_calibration_chart')
         )
-      ),
+      ), # import end -
       
-      ## statistics ------------------------------------------------------------
+      ### statistics -----------------------------------------------------------
       tabItem(
         tabName = 'statistics',
         
@@ -175,13 +178,40 @@ ui <- dashboardPage(
           valueBoxOutput(outputId = 'attended_on_mobile', width = 6),
         )
 
-      ),
+      ), # statistics end -
       
-      ## other -----------------------------------------------------------------
+      ### survival -------------------------------------------------------------
       tabItem(
-        tabName = 'other'
-      )
-      
+        tabName = 'survival',
+        
+        ### title and instructions
+        fluidRow(
+          column(
+            width = 12,
+            h1('Survival analysis'),
+            a('https://towardsdatascience.com/what-is-survival-analysis-examples-by-hand-and-in-r-3f0870c3203f')
+          )
+        ),
+        
+        ### tabset of different survival analyses
+        fluidRow(
+          
+          tabsetPanel(
+            type = 'tabs',
+            
+            tabPanel(
+              title = 'Overall',
+              plotOutput(outputId = 'survival_plot_overall'),
+              gt_output(outputId = 'survival_table_overall_time'),
+              gt_output(outputId = 'survival_table_overall_probs')
+            )
+            
+          )
+          
+        ),
+        
+        
+      ) # survival end -
       
       
     )
@@ -289,70 +319,139 @@ server <- function(input, output) {
   })
   
   # render stats boxes
-  fluidRow(
-    output$averagetime <- renderValueBox({
-      valueBox(
-        value = df_statistics()$mean_duration,
-        subtitle = 'Average time attending the event',
-        icon = icon('clock'),
-        color = 'yellow'
-      )
-    }),
+  output$averagetime <- renderValueBox({
+    valueBox(
+      value = df_statistics()$mean_duration,
+      subtitle = 'Average time attending the event',
+      icon = icon('clock'),
+      color = 'yellow'
+    )
+  })
     
-    output$number_of_attendees <- renderValueBox({
-      valueBox(
-        value = df_statistics()$number_of_attendees,
-        subtitle = 'Attended the event',
-        icon = icon('people-group'),
-        color = 'yellow'
-      )
-    }),
+  output$number_of_attendees <- renderValueBox({
+    valueBox(
+      value = df_statistics()$number_of_attendees,
+      subtitle = 'Attended the event',
+      icon = icon('people-group'),
+      color = 'yellow'
+    )
+  })
     
-    output$attend_less_than_15 <- renderValueBox({
-      valueBox(
-        value = df_statistics()$attend_less_than_15,
-        subtitle = 'Attended for less than 15 minutes',
-        icon = icon('stopwatch'),
-        color = 'green'
-      )
-    }),
+  output$attend_less_than_15 <- renderValueBox({
+    valueBox(
+      value = df_statistics()$attend_less_than_15,
+      subtitle = 'Attended for less than 15 minutes',
+      icon = icon('stopwatch'),
+      color = 'green'
+    )
+  })
     
-    output$attend_more_than_45 <- renderValueBox({
-      valueBox(
-        value = df_statistics()$attend_more_than_45,
-        subtitle = 'Attended for more than 45 minutes',
-        icon = icon('people-line'),
-        color = 'green'
-      )
-    }),
+  output$attend_more_than_45 <- renderValueBox({
+    valueBox(
+      value = df_statistics()$attend_more_than_45,
+      subtitle = 'Attended for more than 45 minutes',
+      icon = icon('people-line'),
+      color = 'green'
+    )
+  })
     
-    output$joined_after_15mins <- renderValueBox({
-      valueBox(
-        value = df_statistics()$joined_after_15mins,
-        subtitle = 'Joined after 15 minutes',
-        icon = icon('right-to-bracket'),
-        color = 'green'
-      )
-    }),
+  output$joined_after_15mins <- renderValueBox({
+    valueBox(
+      value = df_statistics()$joined_after_15mins,
+      subtitle = 'Joined after 15 minutes',
+      icon = icon('right-to-bracket'),
+      color = 'green'
+    )
+  })
     
-    output$attended_on_computer <- renderValueBox({
-      valueBox(
-        value = df_statistics()$attended_on_computer,
-        subtitle = 'Attended using a computer or laptop',
-        icon = icon('display'),
-        color = 'purple'
-      )
-    }),
+  output$attended_on_computer <- renderValueBox({
+    valueBox(
+      value = df_statistics()$attended_on_computer,
+      subtitle = 'Attended using a computer or laptop',
+      icon = icon('display'),
+      color = 'purple'
+    )
+  })
     
-    output$attended_on_mobile <- renderValueBox({
-      valueBox(
-        value = df_statistics()$attended_on_mobile,
-        subtitle = 'Attended on a mobile device',
-        icon = icon('mobile-screen-button'),
-        color = 'purple'
+  output$attended_on_mobile <- renderValueBox({
+    valueBox(
+      value = df_statistics()$attended_on_mobile,
+      subtitle = 'Attended on a mobile device',
+      icon = icon('mobile-screen-button'),
+      color = 'purple'
+    )
+  })
+  
+  # survival -------------------------------------------------------------------
+  # modify the df to work with survival analysis
+  df_survival <- reactive({
+    req(df_attendees())
+    
+    df_attendees() |> 
+      mutate(
+        # defines the end point of the meeting
+        event_end = quantile(left_datetime, probs = 0.75), 
+        # censor attendees for whom we don't know their left time
+        status = case_when(
+          is.na(left_datetime) ~ 0,
+          TRUE ~ 1
+        )
       )
-    }),
-  )
+    
+  })
+  
+  output$survival_plot_overall <- renderPlot({
+    req(df_survival())
+    
+    # simple survival curve
+    surv_overall <- survfit2(
+      Surv(attendance_duration, status) ~ 1, data = df_survival()
+    )
+    
+    surv_overall |> 
+      ggsurvfit(colour = '#2c2825') +
+      add_confidence_interval(fill = '#f9bf07') +
+      add_risktable() +
+      scale_ggsurvfit() + 
+      labs(
+        title = 'Survival analysis',
+        x = 'Minutes'
+      )
+  })
+  
+  output$survival_table_overall_time <- render_gt({
+    req(df_survival())
+    
+    # simple survival curve
+    surv_overall <- survfit2(
+      Surv(attendance_duration, status) ~ 1, data = df_survival()
+    )
+    
+    temp_mins_max <- max(df_survival()$attendance_duration, na.rm = T)
+    
+    surv_overall |> 
+      tbl_survfit(
+        times = c((temp_mins_max/4), (temp_mins_max/2), ((temp_mins_max/4)*3)),
+        label_header = '{time} minutes'
+      ) |> 
+      as_gt()
+  })
+  
+  output$survival_table_overall_probs <- render_gt({
+    req(df_survival())
+    
+    # simple survival curve
+    surv_overall <- survfit2(
+      Surv(attendance_duration, status) ~ 1, data = df_survival()
+    )
+    
+    surv_overall |> 
+      tbl_survfit(
+        probs = c(0.5),
+        label_header = 'Median survival time in mins (95% CI)'
+      ) |> 
+      as_gt()
+  })
 
     
 }
