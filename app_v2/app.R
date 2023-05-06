@@ -213,6 +213,13 @@ ui <- dashboardPage(
               plotOutput(outputId = 'survival_plot_device'),
               gt_output(outputId = 'survival_table_device_time'),
               gt_output(outputId = 'survival_table_device_probs')
+            ),
+            
+            tabPanel(
+              title = 'Promptness',
+              plotOutput(outputId = 'survival_plot_promptness'),
+              gt_output(outputId = 'survival_table_promptness_time'),
+              gt_output(outputId = 'survival_table_promptness_probs')
             )
           ),
         ),
@@ -408,13 +415,21 @@ server <- function(input, output) {
       mutate(
         # defines the end point of the meeting
         event_end = quantile(left_datetime, probs = 0.75), 
+        start_time_plus15 = add_minutes(min(attendance_start_datetime), 15),
+        start_time_minus5 = add_minutes(min(attendance_start_datetime), -5),
         # censor attendees for whom we don't know their left time
         status = case_when(
           is.na(left_datetime) ~ 0,
           TRUE ~ 1
         ),
         # convert output variables to factors
-        os_formfactor = factor(os_formfactor)
+        os_formfactor = factor(os_formfactor),
+        flag_promptness = case_when(
+          joined_datetime > start_time_plus15 ~ 'Joined 15+ mins late',
+          joined_datetime < start_time_minus5 ~ 'Joined 5+ mins early',
+          TRUE ~ 'Joined on time'
+        ),
+        flag_promptness = factor(flag_promptness),
       )
     
   })
@@ -527,6 +542,68 @@ server <- function(input, output) {
       tbl_survfit(
         probs = c(0.5),
         label = list(os_formfactor ~ 'Device type'),
+        label_header = 'Median survival time in mins (95% CI)'
+      ) |> 
+      as_gt()
+  })
+  
+  ## promptness
+#   'survival_plot_promptness'),
+# gt_output(outputId = 'survival_table_promptness_time'),
+# gt_output(outputId = 'survival_table_promptness_probs')
+  ## device --
+  output$survival_plot_promptness <- renderPlot({
+    req(df_survival())
+    
+    # simple survival curve
+    surv_overall <- survfit2(
+      Surv(attendance_duration, status) ~ flag_promptness, data = df_survival()
+    )
+    
+    surv_overall |> 
+      ggsurvfit() +
+      add_confidence_interval() +
+      add_risktable() +
+      scale_ggsurvfit() + 
+      labs(
+        title = 'Survival analysis for all attendees, split by promptness',
+        x = 'Minutes'
+      )
+  })
+  
+  output$survival_table_promptness_time <- render_gt({
+    req(df_survival())
+    
+    # simple survival curve
+    surv_overall <- survfit2(
+      Surv(attendance_duration, status) ~ flag_promptness, data = df_survival()
+    )
+    
+    # what is the maximum attendance duration (rounded to nearest 15 mins)
+    temp_mins_max <- ceiling(max(df_survival()$attendance_duration, na.rm = T)/15)*15
+    
+    surv_overall |> 
+      tbl_survfit(
+        times = c((temp_mins_max/4), (temp_mins_max/2), ((temp_mins_max/4)*3)),
+        label = list(flag_promptness ~ 'Promptness'),
+        label_header = '{time} minutes',
+        
+      ) |> 
+      as_gt()
+  })
+  
+  output$survival_table_promptness_probs <- render_gt({
+    req(df_survival())
+    
+    # simple survival curve
+    surv_overall <- survfit2(
+      Surv(attendance_duration, status) ~ flag_promptness, data = df_survival()
+    )
+    
+    surv_overall |> 
+      tbl_survfit(
+        probs = c(0.5),
+        label = list(flag_promptness ~ 'Promptness'),
         label_header = 'Median survival time in mins (95% CI)'
       ) |> 
       as_gt()
