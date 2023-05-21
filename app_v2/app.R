@@ -19,7 +19,7 @@ library(StrategyUnitTheme)        # corporate colours
 
 ## user-defined functions ----
 source(here('functions_script.R'))
-
+filetypes <- c("MS Teams Live Event", "MS Teams Webinar", "Zoom")
 # ui ---------------------------------------------------------------------------
 ui <- dashboardPage(
   skin = 'yellow',
@@ -44,13 +44,19 @@ ui <- dashboardPage(
   ## sidebar -------------------------------------------------------------------
   dashboardSidebar(
     sidebarMenu(
-      
+      id="sidebarid",
       ### import ---
       menuItem(
         text = 'Import',
         tabName = 'file_import',
         icon = icon('file-import')
       ),
+      
+      conditionalPanel(
+        'input.sidebarid == "file_import"',
+        radioButtons("file_type","Select file type", filetypes)
+        
+      ),        
       
       ### stats ---
       menuItem(
@@ -64,6 +70,13 @@ ui <- dashboardPage(
         text = 'Survival analysis',
         tabName = 'survival',
         icon = icon('stopwatch-20')
+      ),
+      
+      ### export ---
+      menuItem(
+        text = 'Data export',
+        tabName = 'export',
+        icon = icon('file-export')
       )
     )
   ),
@@ -90,6 +103,7 @@ ui <- dashboardPage(
             'Import your attendance file and configure start and end times',
           )
         ),
+        
         
         ### import configuration box ---
         fluidRow(
@@ -235,8 +249,33 @@ ui <- dashboardPage(
         )
         
         
-      ) # survival end -
-      
+      ), # survival end -
+ 
+      ### export -----------------------------------------------------------
+      tabItem(
+        tabName = 'export',
+        
+        ### title and instructions
+        fluidRow(
+          column(
+            width = 12,
+            h1('Export Data'),
+          )
+        ),
+        
+        fluidRow(
+          column(width = 12, 'Here will be the ability to export some neat data from the imported file:')
+        ),
+        
+        fluidRow(
+          column(width = 12, 'Export attendees list')
+        ),
+        
+        fluidRow(
+          column(width = 12, 'Export other useful data')
+        )
+        
+      )     
       
     )
   )
