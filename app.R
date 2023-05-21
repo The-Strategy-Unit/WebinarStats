@@ -24,10 +24,10 @@ source("functions_script.R")
 ui_mainpanel <- mainPanel(
   # file
   tableOutput("file"),
-  textOutput("averagetime"),
-  textOutput("attend_less_than_15"),
   textOutput("number_of_attendees"),
+  textOutput("averagetime"),
   textOutput("attend_more_than_45"),
+  textOutput("attend_less_than_15"),
   textOutput("joined_after_15mins"),
   plotOutput("plot",width="90%"),
   plotOutput("plot2",width="90%"),
@@ -81,10 +81,10 @@ ui <- fluidPage(
       ### stats boxes ----
       fluidRow(
         
-        valueBoxOutput(outputId = 'averagetime', width = 2),
-        valueBoxOutput(outputId = 'attend_less_than_15', width = 2),
         valueBoxOutput(outputId = 'number_of_attendees', width = 2),
+        valueBoxOutput(outputId = 'averagetime', width = 2),
         valueBoxOutput(outputId = 'attend_more_than_45', width = 2),
+        valueBoxOutput(outputId = 'attend_less_than_15', width = 2),
         valueBoxOutput(outputId = 'joined_after_15mins', width = 2),
         
       ),
