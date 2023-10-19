@@ -5,8 +5,12 @@
 #' -----------------------------------------------------------------------------
 
 # libraries --------------------------------------------------------------------
-library(tidyverse)
-library(clock)
+library(tidyverse)         # tidy processing
+library(clock)             # datetime processing
+library(vroom)             # speedy file loads
+library(here)              # localised file references
+library(janitor)           # tidy field names
+library(uaparserjs)        # parse user-agent strings
 
 #' Get Joined Data
 #' 
@@ -252,6 +256,7 @@ estimate_event_times <- function(df) {
   df_end <- df |> 
     filter(action == 'Left') |> 
     summarise(end = quantile(action_datetime_rounded, probs = 0.75))
+    #summarise(end = median(action_datetime_rounded))
   
   # combine together to a single table with one row and two columns
   df_return <- bind_cols(
@@ -262,3 +267,340 @@ estimate_event_times <- function(df) {
   # return the result
   return(df_return)
 }
+
+
+#' Process an imported attendance report file
+#' 
+#' Takes a tibble of data from an imported attendance file and prepares it for
+#' analysis by cleaning column names, parsing times and user-agent strings and
+#' then joining session join/left records to return a single tidy dataset with
+#' one session per row.
+#' 
+#' NB, participants with multiple sessions will have multiple rows but these
+#' will be handled in subsequent analysis function calls.
+#' 
+#' @param df An imported attendance file from MS Teams
+#'
+#' @return Tibble of data with parsed fields and one row per session
+#' @export
+#'
+#' @examples
+process_imported_file <- function(df) {
+  
+  # clean fields and parse datetimes ----
+  df <- df |> 
+    # make the column names easier to work with
+    clean_names() |> 
+    # work out when things happened
+    mutate(
+      # parse datetime from the utc event string - nb, using %I for the hour so takes account of am/pm
+      action_datetime = date_time_parse(utc_event_timestamp, format = '%m/%d/%Y %I:%M:%S %p', zone = 'UTC'),
+      # round to 15 minute intervals
+      action_datetime_rounded = date_round(action_datetime, precision = 'minute', n = 15),
+    ) |> 
+    # remove fields no longer required
+    select(-utc_event_timestamp) |> 
+    # arrange by participant
+    arrange(participant_id)
+  
+  # tidy data ----
+  # combine start/end dates for each session to a single row
+  df <- left_join(
+    x = df |> filter(action == 'Joined') |> 
+      rename(joined_datetime = action_datetime, joined_datetime_rounded = action_datetime_rounded),
+    y = df |> filter(action == 'Left') |> 
+      select(session_id, left_datetime = action_datetime, left_datetime_rounded = action_datetime_rounded),
+    by = 'session_id'
+  ) |> 
+    # remove fields no longer required
+    select(-session_id, -action) |> 
+    # work out length of session in seconds
+    mutate(session_length = left_datetime - joined_datetime) |> 
+    # put relevant columns together
+    relocate(left_datetime, .after = joined_datetime) |> 
+    relocate(session_length, .after = left_datetime)
+  
+  # parse user-agent details ----
+  df_ua <- df |> select(user_agent) |> unique()
+  df_ua <- ua_parse(df_ua$user_agent) |> clean_names() |> 
+    # pick out data-dense fields that are likely to be useful
+    select(
+      user_agent,     # key back to the df table
+      ua_family,      # the type of 'browser' the session was attended on
+      os_family,      # the operating system used to access the session
+      device_family,  # what type of device accessed the session
+    ) |> 
+    # categorise into mobile / other based on os_family
+    mutate(
+      os_formfactor = case_when(
+        os_family %in% c('Android', 'iOS') ~ 'Mobile',
+        TRUE ~ 'Computer'
+      )
+    )
+  
+  # add the ua details to the df
+  df <- left_join(
+    x = df,
+    y = df_ua,
+    by = 'user_agent'
+  ) |> 
+    # remove fields no longer required
+    select(-user_agent)
+  
+  # return the result
+  return(df)
+  
+}
+
+
+#' Get attendee data for an event
+#' 
+#' Takes a processed df as an output from process_imported_file() along with a
+#' start and end datetime for an event and returns a list of unique attendees
+#' with the duration of their attendance calculated. 
+#' 
+#' Attendees who had multiple sessions, for example because they joined / left 
+#' more than once, will be assumed to have attended from their earliest join 
+#' datetime to the their latest left datetime.
+#'
+#' @param df Tibble of data from a processed attendance file
+#' @param event_start_datetime Datetime specifying the start of the event
+#' @param event_end_datetime Datetime specifying the end of the event
+#'
+#' @return Tibble of attendees for the event with one row per attendee
+#' @export
+#' @seealso process_imported_file()
+#'
+#' @examples
+get_event_attendees <- function(df, event_start_datetime, event_end_datetime) {
+  
+  # get attendee data ----------------------------------------------------------
+  df_attendees <- df |> 
+    # keep records where sessions coincided with the event start and end times
+    filter(
+      role == 'Attendee', # only work with attendees (not team members)
+      !is.na(participant_id), # only work with participants with a valid id
+      joined_datetime < event_end_datetime, # where they joined before the end of the session
+      left_datetime > event_start_datetime # where they left after the start of the session
+    ) |> 
+    # keep unique records
+    unique()
+  
+  # merge multiple sessions per person -----------------------------------------
+  # assume they attended from their earliest session start to their latest session end
+  
+  # get the earliest session by join time
+  df_attendees_earliest_join <- df_attendees |>
+    group_by(participant_id) |> 
+    slice_min(order_by = joined_datetime) |> 
+    slice_head(n = 1) |> # some sessions appear duplicate times
+    ungroup() |> 
+    select(participant_id, joined_datetime, joined_datetime_rounded)
+  
+  # get the latest session by left time
+  df_attendees_latest_left <- df_attendees |> 
+    group_by(participant_id) |> 
+    slice_max(order_by = left_datetime) |> 
+    slice_tail(n = 1) |> # some sessions appear duplicate times
+    ungroup() |> 
+    select(participant_id, left_datetime, left_datetime_rounded)
+  
+  # get a single device per participant (select the device with longest use)
+  df_attendees_device <- df_attendees |> 
+    group_by(participant_id) |> 
+    slice_max(order_by = session_length) |> 
+    slice_head(n = 1) |> # some sessions have the same length so in this case select the first one
+    ungroup() |> 
+    select(participant_id, ua_family, os_family, device_family, os_formfactor)
+  
+  # combine to a single table
+  df_attendees_unique <- df_attendees |> 
+    select(participant_id, full_name) |> 
+    unique()
+  
+  df_attendees_unique <- left_join(
+    x = df_attendees_unique,
+    y = df_attendees_earliest_join,
+    by = 'participant_id'
+  )
+  df_attendees_unique <- left_join(
+    x = df_attendees_unique,
+    y = df_attendees_latest_left,
+    by = 'participant_id'
+  )
+  df_attendees_unique <- left_join(
+    x = df_attendees_unique,
+    y = df_attendees_device,
+    by = 'participant_id'
+  )
+  
+  # housekeeping
+  rm(df_attendees_earliest_join, df_attendees_latest_left, df_attendees_device)
+  
+  # work out the length time each participant attended the session -------------
+  df_attendees <- df_attendees_unique |> 
+    mutate(
+      attendance_start_datetime = pmax(joined_datetime, event_start_datetime),
+      attendance_end_datetime = pmin(left_datetime, event_end_datetime),
+      attendance_duration = date_count_between(
+        start = attendance_start_datetime,
+        end = attendance_end_datetime,
+        precision = 'minute'
+      )
+    )
+}
+
+#' Get attendance count by minute
+#' 
+#' Gets a count of attendees for each minute of the event.
+#'
+#' @param df_attendees Tibble of attendees with a unique id, attendance start and end times 
+#' @param start Datetime of the start of the event
+#' @param end Datetime of the end of the event
+#'
+#' @return Tibble of with the number of attendees for each minute of the event
+#' @export
+#'
+#' @examples
+get_attandance_count_per_minute <- function(df_attendees, start, end) {
+  
+  # get a sequence of datetimes from event start to event end
+  df_minutes <- seq(
+    #from = make_datetime(2023,03,02,11),
+    #to = make_datetime(2023,03,02,12),
+    from = start,
+    to = end,
+    by = '1 min'
+  ) |> 
+    # convert to tibble and name the column
+    as_tibble() |> 
+    rename(minute = value)
+  
+  # cartesian join all minutes to each attendee record
+  df_attendees_per_minute <- merge(
+    x = df_attendees,
+    y = df_minutes
+  ) |> 
+    # limit to where the minute is within attendance start and end dates
+    filter(
+      !is.na(attendance_start_datetime),
+      !is.na(attendance_end_datetime),
+      (attendance_start_datetime <= minute) & (attendance_end_datetime >= minute)
+    ) |> 
+    # count number of participants per minute
+    group_by(minute) |> 
+    summarise(attendees = n_distinct(participant_id)) |> 
+    ungroup()
+  
+  # return the result
+  return(df_attendees_per_minute)
+  
+}
+
+get_event_datetime <- function(event_date, event_time) {
+  event_datetime <- date_time_parse(
+    x = paste(
+      strftime(event_date),
+      strftime(event_time, '%T')
+    ),
+    zone = 'UTC'
+  )
+  return(event_datetime)
+}
+
+
+calculate_attendance_statistic <- function(df_attendees) {
+  
+  # combine all stats to a tibble with a column each
+  df_return = bind_cols(
+    
+    # average attendance duration in minutes
+    mean_duration = paste(
+      prettyNum(
+        round(
+          mean(
+            df_attendees$attendance_duration
+          )
+        ), big.mark = ','
+      ), 'mins'
+    ),
+    
+    # number of attendees for the event
+    number_of_attendees = paste(
+      prettyNum(
+        n_distinct(df_attendees$participant_id),
+        big.mark = ','
+      ), 'people'
+    ),
+    
+    # number of attendees who stayed for less than 15 minutes
+    attend_less_than_15 = paste(
+      prettyNum(
+        n_distinct(
+          df_attendees |> 
+            filter(attendance_duration < 15) |> 
+            select(participant_id) |> 
+            as_vector()
+        ), big.mark = ','
+      ), 'people'
+    ),
+    
+    # number of people who stayed for over 45 minutes
+    attend_more_than_45 = paste(
+      prettyNum(
+        n_distinct(
+          df_attendees |> 
+            filter(attendance_duration > 45) |> 
+            select(participant_id) |> 
+            as_vector()
+        ), big.mark = ','
+      ), 'people'
+    ),
+    
+    # people who joined the event after 15 minutes
+    joined_after_15mins = paste(
+      prettyNum(
+        n_distinct(
+          df_attendees |> 
+            mutate(start_time_plus15 = add_minutes(min(attendance_start_datetime), 15)) |> 
+            filter(attendance_start_datetime > start_time_plus15) |> 
+            select(participant_id) |> 
+            as_vector()
+        ), big.mark = ','
+      ), 'people'
+    ),
+    
+    # people who attended on a computer device
+    attended_on_computer = paste(
+      prettyNum(
+        n_distinct(
+          df_attendees |> 
+            filter(os_formfactor == 'Computer') |> 
+            select(participant_id) |> 
+            as_vector()
+        ), big.mark = ','
+      ), 'people'
+    ),
+    
+    # people who attended on a mobile device
+    attended_on_mobile = paste(
+      prettyNum(
+        n_distinct(
+          df_attendees |> 
+            filter(os_formfactor == 'Mobile') |> 
+            select(participant_id) |> 
+            as_vector()
+        ), big.mark = ','
+      ), 'people'
+    )
+    
+  ) # end of bind_col ---
+
+  # return the result
+  return(df_return)
+
+}
+
+
+
+
