@@ -1,7 +1,13 @@
 # WebinarStats
 
+There was a short presentation on this project at NHS-R/NHS.pycom Conference in October 2023:
 
-Code to take the files created after MS Teams Live Events and Webinars or Zoom events, clean the data and generate some stats
+https://www.youtube.com/watch?v=8jcPwD8x8WE
+
+The presentation is at 4:46:26 and is called, "Getting started with collaboration on GitHub: Crunching webinar attendance data with R and Shiny"
+
+
+This repository contains code to take the files created after MS Teams Live Events and Webinars or Zoom events, clean the data and generate some stats
 
 Initially this is working for the AttendeeReport.csv created after a Teams Live Event. Zoom file functiionality is under development.
 
